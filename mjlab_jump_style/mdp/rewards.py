@@ -11,8 +11,6 @@ from mjlab_jump_style.utils.t2m_motion_encoder import T2MMotionEncoder
 
 _DEFAULT_ASSET_CFG = SceneEntityCfg("robot")
 
-from mjlab_jump_style.utils.motion_vae_encoder import MotionVAEEncoder
-
 
 def vertical_velocity_reward(
   env: ManagerBasedRlEnv,
@@ -174,105 +172,9 @@ def feet_clearance_during_jump(
   return reward
 
 
-class vae_motion_similarity:
-  """Reward based on VAE latent similarity to reference jump motion.
-
-  This class:
-  1. Maintains a MotionVAEEncoder instance
-  2. Updates buffer each step with current robot pose
-  3. Periodically computes latent encoding and distance
-  4. Returns reward based on similarity (lower distance = higher reward)
-  """
-
-  def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRlEnv):
-    """Initialize the VAE motion similarity reward.
-
-    Args:
-        cfg: Reward term configuration
-        env: Environment instance
-    """
-    # Get parameters
-    self.asset_cfg = cfg.params["asset_cfg"]
-    self.weight = cfg.weight
-    reference_latent_path = cfg.params.get("reference_latent_path")
-    buffer_length = cfg.params.get("buffer_length", 300)
-    target_frames = cfg.params.get("target_frames", 120)
-    vae_update_interval = cfg.params.get("vae_update_interval", 10)
-
-    # Only load VAE if weight > 0 (skip during evaluation to save time/memory)
-    if self.weight > 0:
-      # Create VAE encoder
-      self.vae_encoder = MotionVAEEncoder(
-        num_envs=env.num_envs,
-        buffer_length=buffer_length,
-        target_frames=target_frames,
-        device=env.device,
-        vae_update_interval=vae_update_interval,
-      )
-
-      print("[vae_motion_similarity] Initialized with:")
-      print(f"  - buffer_length: {buffer_length}")
-      print(f"  - target_frames: {target_frames}")
-      print(f"  - vae_update_interval: {vae_update_interval}")
-      print(f"  - reference_latent_path: {reference_latent_path}")
-    else:
-      self.vae_encoder = None
-      print("[vae_motion_similarity] Disabled (weight=0, skipping VAE loading)")
-
-  def __call__(self, env: ManagerBasedRlEnv, **kwargs) -> torch.Tensor:
-    """Compute VAE similarity reward.
-
-    Args:
-        env: Environment instance
-        **kwargs: Additional parameters (unused)
-
-    Returns:
-        Tensor of shape (num_envs,) with reward values
-    """
-    # If VAE is disabled (weight=0), return zeros
-    if self.vae_encoder is None:
-      return torch.zeros(env.num_envs, device=env.device, dtype=torch.float32)
-
-    # Extract SMPL joints from G1
-    asset: Entity = env.scene[self.asset_cfg.name]
-    joints_22 = extract_smpl_joints(asset)
-
-    # Update buffer
-    self.vae_encoder.update(joints_22)
-
-    # Compute distances (returns cached if not update step)
-    distances = self.vae_encoder.compute_latent_distances()
-
-    # Convert distance to reward
-    # Based on notebook: jump ~12.6, walk ~42.3, mean variation ~25.3
-    # Good jump should be < 20, poor jump > 30
-    # Using exponential falloff with scale of 15.0
-    reward = torch.exp(-distances / 15.0)
-
-    return reward
-
-  def reset(self, env_ids: torch.Tensor, env: ManagerBasedRlEnv) -> None:
-    """Reset buffer for specific environments.
-
-    Args:
-        env_ids: Environment indices to reset
-        env: Environment instance
-    """
-    if self.vae_encoder is not None:
-      self.vae_encoder.reset_buffer(env_ids)
-
-
 class t2m_motion_similarity:
   """Reward based on T2M embedding similarity to reference jump motion.
-
   This uses T2M (Text-to-Motion) embeddings instead of VAE latents for
-  MUCH BETTER discrimination (9.24x better separation between motion classes!).
-
-  Key advantages:
-  - 9.24x better separation than VAE latents
-  - More consistent and robust
-  - Specifically trained for motion understanding
-  - Used in MLD evaluation metrics
 
   This class:
   1. Maintains a T2MMotionEncoder instance
