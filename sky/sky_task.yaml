@@ -1,0 +1,32 @@
+name: my-task
+
+# Working directory (optional) containing the project codebase.
+# Its contents are synced to ~/sky_workdir/ on the cluster.
+workdir: ../
+
+num_nodes: 1
+resources:
+  infra: primeintellect
+  accelerators: A100:1 # 1x NVIDIA A100 GPU
+  use_spot: false
+
+envs:
+  MY_BUCKET: skypilot-temp-gcs-test
+  MY_LOCAL_PATH: tmp-workdir
+  MODEL_SIZE: 13b
+
+# file_mounts:
+#   # Sync a local directory to a remote directory
+#   /home/outputs: ./outputs/
+
+# Commands to be run before executing the job.
+setup: |
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  uv sync
+  huggingface-cli login --token ${HF_TOKEN} 
+  wandb login --relogin ${WANDB_API_KEY}
+
+# Commands to run as a job.
+# Typical use: launch the main program.
+run: |
+  uv run python train.py Mjlab-Jumping-Flat-Unitree-G1 --env.scene.num-envs 4096
