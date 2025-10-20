@@ -3,9 +3,14 @@ name = "mjlab_jump_style"
 version = "0.1.0"
 description = "Jump gym that try to mimic the style of a given jump motion"
 readme = "README.md"
+authors = [{ name = "Julien Blanchon", email = "julien@blanchon.cc" }]
 requires-python = ">=3.10"
 dependencies = ["mjlab", "motion-latent-diffusion-standalone"]
 
 [tool.uv.sources]
 mjlab = { git = "https://github.com/mujocolab/mjlab.git" }
 motion-latent-diffusion-standalone = { git = "https://github.com/julien-blanchon/motion_latent_diffusion_standalone" }
+
+[build-system]
+requires = ["uv_build>=0.9.2,<0.10.0"]
+build-backend = "uv_build"
